@@ -5,12 +5,13 @@ use std::io::timer::sleep;
 use std::sync::Arc;
 use std::sync::atomics::{AtomicPtr, Relaxed};
 use std::comm::Disconnected;
+use std::cell::UnsafeCell;
 
 /// A coarse timer updating on a background thread.
 ///
 /// The sender channel is stored so whenever the SlackTimer
 /// is dropped, the background thread will halt.
-pub struct SlackTimer(Sender<()>, Arc<AtomicPtr<Timespec>>);
+pub struct SlackTimer(UnsafeCell<Sender<()>>, Arc<AtomicPtr<Timespec>>);
 
 impl SlackTimer {
     /// Creates a new timer with a given period.
@@ -45,7 +46,7 @@ impl SlackTimer {
         // Wait for first assignment
         while timer.load(Relaxed).is_null() {}
 
-        SlackTimer(tx, timer)
+        SlackTimer(UnsafeCell::new(tx), timer)
     }
 
     /// Returns the current time as a `Timespec` containing the
