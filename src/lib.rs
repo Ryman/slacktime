@@ -1,17 +1,24 @@
 extern crate time;
-use time::Timespec;
+use time::{Timespec, Tm};
 use std::time::Duration;
 use std::io::timer::sleep;
 use std::sync::Arc;
 use std::sync::atomics::{AtomicPtr, Relaxed};
 use std::comm::Disconnected;
 use std::cell::UnsafeCell;
+use std::mem;
 
 /// A coarse timer updating on a background thread.
 ///
 /// The sender channel is stored so whenever the SlackTimer
 /// is dropped, the background thread will halt.
-pub struct SlackTimer(UnsafeCell<Sender<()>>, Arc<AtomicPtr<Timespec>>);
+pub struct SlackTimer(UnsafeCell<Sender<()>>, Arc<AtomicPtr<CachedTimes>>);
+
+struct CachedTimes {
+    get_time: Timespec,
+    now: Tm,
+    now_utc: Tm,
+}
 
 impl SlackTimer {
     /// Creates a new timer with a given period.
@@ -29,15 +36,27 @@ impl SlackTimer {
         let (tx, rx) = channel();
 
         spawn(proc() {
-            let (ref mut a, ref mut b) = (time::get_time(), time::get_time());
+            let (ref mut a, ref mut b) = unsafe {
+                (mem::uninitialized::<CachedTimes>(),
+                 mem::uninitialized::<CachedTimes>())
+            };
 
             // Check if host process has killed the channel
             while rx.try_recv() != Err(Disconnected) {
                 // Update one location at a time and then update the pointer
-                *a = time::get_time();
+                *a = CachedTimes {
+                    get_time: time::get_time(),
+                    now: time::now(),
+                    now_utc: time::now_utc(),
+                };
                 proc_timer.store(a, Relaxed);
                 sleep(sleep_dur);
-                *b = time::get_time();
+
+                *b = CachedTimes {
+                    get_time: time::get_time(),
+                    now: time::now(),
+                    now_utc: time::now_utc(),
+                };
                 proc_timer.store(b, Relaxed);
                 sleep(sleep_dur);
             }
@@ -56,6 +75,24 @@ impl SlackTimer {
     #[inline]
     pub fn get_time(&self) -> Timespec {
         let SlackTimer(_, ref time) = *self;
-        unsafe { *time.load(Relaxed).clone() }
+        unsafe { (*time.load(Relaxed)).get_time.clone() }
+    }
+
+    /// Returns the current time in UTC
+    ///
+    /// This is equivalent to a coarse form of `time::now_utc`
+    #[inline]
+    pub fn now_utc(&self) -> Tm {
+        let SlackTimer(_, ref time) = *self;
+        unsafe { (*time.load(Relaxed)).now_utc.clone() }
+    }
+
+    /// Returns the current time in the local timezone
+    ///
+    /// This is equivalent to a coarse form of `time::now`
+    #[inline]
+    pub fn now(&self) -> Tm {
+        let SlackTimer(_, ref time) = *self;
+        unsafe { (*time.load(Relaxed)).now.clone() }
     }
 }
