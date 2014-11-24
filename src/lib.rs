@@ -3,7 +3,7 @@ use time::{Timespec, Tm};
 use std::time::Duration;
 use std::io::timer::sleep;
 use std::sync::Arc;
-use std::sync::atomics::{AtomicPtr, Relaxed};
+use std::sync::atomic::{AtomicPtr, Relaxed};
 use std::comm::Disconnected;
 use std::cell::UnsafeCell;
 use std::mem;

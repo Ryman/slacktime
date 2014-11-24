@@ -13,7 +13,6 @@ macro_rules! tests(
 
             fn t(d: Duration) {
                 let foo = SlackTimer::new(d);
-                //let cmp = |new, old| $cmp;
                 range(0, 10u).fold(foo.$method(), |$old, _| {
                     println!("old: {}", $old)
                     sleep(d * 2); // bit of a buffer
