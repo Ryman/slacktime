@@ -35,7 +35,7 @@ impl SlackTimer {
         let proc_timer = timer.clone();
         let (tx, rx) = channel();
 
-        spawn(proc() {
+        spawn(move || {
             let (ref mut a, ref mut b) = unsafe {
                 (mem::uninitialized::<CachedTimes>(),
                  mem::uninitialized::<CachedTimes>())
